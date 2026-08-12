@@ -1,0 +1,30 @@
+{
+  "name": "careerlens-desktop",
+  "version": "1.0.0",
+  "description": "Desktop shell for the CareerLens frontend",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "node launch.js",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.harishvijayv.careerlens",
+    "productName": "CareerLens",
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3"
+  }
+}

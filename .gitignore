@@ -16,6 +16,10 @@ frontend/.next/
 frontend/out/
 frontend/.env*.local
 
+# Electron desktop shell (node_modules is large; dist holds the built installer)
+desktop/node_modules/
+desktop/dist/
+
 # Data pipeline artifacts (large, regenerable — never commit generated data)
 pipeline/data/
 pipeline/dbt/target/
