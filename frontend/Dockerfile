@@ -6,6 +6,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# NEXT_PUBLIC_* is inlined by `next build`, not read at runtime, so the API URL has to be
+# known HERE — a container env var set later is ignored. The default matches compose (the
+# browser talks to the host's mapped gateway port); Kubernetes overrides it with the
+# ingress host, because in-cluster the gateway is behind careerlens.local/api instead.
+#   docker build --build-arg NEXT_PUBLIC_API_BASE_URL=http://careerlens.local:8080/api .
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 RUN npm run build
 
 FROM node:20-alpine
