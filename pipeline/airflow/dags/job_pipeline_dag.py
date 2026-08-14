@@ -99,12 +99,23 @@ with DAG(
         ),
     )
 
-    dbt_run = BashOperator(task_id="dbt_run", bash_command=f"cd {PIPELINE}/dbt && {DBT} run")
+    # --profiles-dir . rather than dbt's default of ~/.dbt: the profile lives beside the
+    # project in pipeline/dbt/profiles.yml (gitignored, copied from profiles.yml.example),
+    # and $HOME/.dbt does not exist in the Airflow image. Without this the task dies in
+    # under two seconds with "Invalid value for '--profiles-dir'", which reads like a dbt
+    # bug rather than a missing setup step.
+    dbt_run = BashOperator(
+        task_id="dbt_run",
+        bash_command=f"cd {PIPELINE}/dbt && {DBT} run --profiles-dir .",
+    )
 
     # dbt test runs AFTER the models are built and is the pipeline's quality gate: if the
     # warehouse data is wrong, the run goes red here rather than silently serving bad
     # numbers to the dashboard.
-    dbt_test = BashOperator(task_id="dbt_test", bash_command=f"cd {PIPELINE}/dbt && {DBT} test")
+    dbt_test = BashOperator(
+        task_id="dbt_test",
+        bash_command=f"cd {PIPELINE}/dbt && {DBT} test --profiles-dir .",
+    )
 
     # Both ingestion sources feed the same ETL (fan-in); everything after is sequential
     # because each step consumes the previous step's output.
