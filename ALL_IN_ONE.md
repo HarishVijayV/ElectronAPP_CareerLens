@@ -1097,6 +1097,53 @@ ingress, so the two would fight over it. Override with `AIRFLOW_PORT` if 8090 is
 | 9870 / 9000 | HDFS web UI / namenode |
 | 8080 / 8443 | **kind cluster ingress** (http / https) — not compose |
 
+### What each third-party piece actually is
+
+Everything below is open source and pulled from a public registry — none of it is written
+here. The "what it does **here**" column is the only part specific to CareerLens.
+
+| Tool | What it is, in one line | Port | Login | What it does **here** |
+|---|---|---|---|---|
+| **Apache Airflow** 2.9.3 | A scheduler. Runs a graph of tasks in order, on a timer, and shows you which step failed. | **8090** | `admin`/`admin` | Runs the `job_pipeline` DAG — the ▶ button. Nothing else uses it. |
+| **Apache Kafka** 3.8.1 | An append-only event log. Producers write, consumers read at their own pace, messages survive a consumer being down. | 9092 in-net<br>29092 host | none | One topic, `posting.discovered`. The pipeline writes a message per new job; `match-notifier` reads them and creates notifications. |
+| **Kafka UI** (Provectus) | A web view of a Kafka cluster — topics, messages, consumer lag. | **8085** | none | Watching whether events actually flowed. Diagnostic only; delete it and nothing breaks. |
+| **Adminer** | A single-PHP-file database browser. | **8081** | Postgres creds from `infra/.env` | Poking at tables without installing pgAdmin. |
+| **PostgreSQL** 16 | The relational database. | 5432 | from `infra/.env` | Two roles: app data (users, resumes, applications) and the `analytics` star schema dbt builds. |
+| **Redis** 7 | In-memory key-value store. | 6379 | none | Celery's task queue + the gateway's rate-limit counters. |
+| **Apache Spark** 3.5.3 (PySpark) | Distributed data processing. Handles datasets too big for pandas. | — | — | The `spark_etl` task: cleans and normalises ~200k raw postings. Runs in-process, no cluster. |
+| **dbt** 1.8 | Turns SQL files into a dependency-ordered set of tables, with tests. | — | — | `dbt_run` builds the star schema; `dbt_test` is the quality gate that fails the pipeline on bad data. |
+| **Hadoop HDFS** 3.2.1 | Distributed filesystem — the classic big-data storage layer. | **9870** UI<br>9000 | none | Landing zone for raw pipeline files. The most optional piece here. |
+| **Celery** 5.4 | Background job runner for Python. | — | — | `worker-service`: Gmail sync and scraping, so a slow job never blocks a web request. |
+| **kind** 0.32 | Runs a real Kubernetes cluster inside Docker containers. | 8080/8443 | — | The 3-node local cluster. Same API as GKE/EKS. |
+| **Helm** 4.2 | Templating + release manager for Kubernetes. | — | — | Installs all 21 objects from one chart; `helm rollback` undoes a bad deploy. |
+| **ingress-nginx** | The cluster's front door — routes by hostname/path. | via 8080 | — | `careerlens.local/api` → gateway, `/` → frontend. |
+
+#### About that `admin`/`admin` login
+
+It is **not** an Airflow default — fresh Airflow ships with no users at all and refuses
+every login. The account is created by our own `airflow-init` container
+([docker-compose.yml:340](infra/docker-compose.yml#L340)):
+
+```
+airflow users create --username admin --password admin --role Admin ...
+```
+
+So it exists because this repo asks for it, and it is fine only because Airflow is bound to
+localhost. On a server that line must become a real password — Airflow can trigger arbitrary
+shell commands, which makes an open admin panel a remote shell.
+
+Adminer is the opposite case: it has no accounts of its own and just forwards whatever you
+type to Postgres, so the credentials are the ones in `infra/.env`.
+
+#### Why Kafka has two ports
+
+`9092` for containers, `29092` from your laptop
+([docker-compose.yml:82](infra/docker-compose.yml#L82)). A Kafka client's first request
+returns the broker's *advertised* address and it then reconnects to whatever it was told —
+so a host process pointed at `9092` gets told "the broker is at `kafka:9092`", cannot resolve
+that name, and **silently fails to deliver.** The producer looks healthy and the topic stays
+empty. Use `localhost:29092` from the host, `kafka:9092` from inside.
+
 ### Two ways to run this repo — and what each is for
 
 The same eight services start two completely different ways. They are not alternatives you
