@@ -368,7 +368,7 @@ docker compose --profile bigdata up -d
 | Port | URL | What | Login |
 |---|---|---|---|
 | **3000** | <http://localhost:3000> | **The app itself** — 10 pages + bell | your own signup |
-| **8080** | <http://localhost:8080> | **Airflow** — did the pipeline run, and did it work? | `admin` / `admin` |
+| **8090** | <http://localhost:8090> | **Airflow** — did the pipeline run, and did it work? | `admin` / `admin` |
 | **8085** | <http://localhost:8085> | **Kafka UI** — did the events get delivered? | none |
 | **8081** | <http://localhost:8081> | **Adminer** — browse the database directly | see below |
 | 9870 | <http://localhost:9870> | HDFS namenode UI — rarely needed | none |
@@ -534,7 +534,7 @@ docker compose --profile bigdata up -d      # the whole setup
 
 Verified: a full DAG run, all 7 tasks green, including a real 5-minute Adzuna fetch.
 
-- Airflow UI **http://localhost:8080** — run history, per-task logs, retry one step
+- Airflow UI **http://localhost:8090** — run history, per-task logs, retry one step
 - Kafka UI **http://localhost:8085** — topics and message contents
 
 ---

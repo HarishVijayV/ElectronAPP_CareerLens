@@ -367,7 +367,10 @@ services:
       PIPELINE_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     command: webserver
     ports:
-      - "8080:8080"
+      # 8090, not 8080: k8s/kind-config.yaml maps host 8080 to the kind ingress, and the
+      # second stack to start would die with "port is already allocated". Overridable via
+      # AIRFLOW_PORT the same way every other port here is.
+      - "${AIRFLOW_PORT:-8090}:8080"
     volumes:
       - ../pipeline/airflow/dags:/opt/airflow/dags
       - ../pipeline:/opt/airflow/pipeline

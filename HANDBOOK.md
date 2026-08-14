@@ -445,7 +445,7 @@ python run_pipeline.py --skip-real                 # offline, no API calls
 profile, so it is **off unless you ask for it**:
 
 ```bash
-docker compose --profile bigdata up -d      # Airflow :8080, Kafka UI :8085
+docker compose --profile bigdata up -d      # Airflow :8090, Kafka UI :8085
 ```
 
 Daily is the right cadence and worth being able to defend: job postings don't change by
@@ -692,7 +692,7 @@ thing has a bill attached.
 Turn the two free ones on whenever you want them:
 
 ```bash
-docker compose --profile bigdata up -d      # Airflow :8080, Kafka UI :8085
+docker compose --profile bigdata up -d      # Airflow :8090, Kafka UI :8085
 ```
 
 **Snowflake expiring costs you nothing**, and that is the point of writing transformations
@@ -921,7 +921,7 @@ That second point is the real argument for hosting it: on a server that never sl
 schedule genuinely holds. On a laptop, "daily at 2am" means "daily at 2am **on days the
 laptop happens to be on at 2am**", which is not a schedule.
 
-**The run history** lives at http://localhost:8080 (Airflow UI). Once it has run a few
+**The run history** lives at http://localhost:8090 (Airflow UI). Once it has run a few
 times you get a grid of every run, green or red per task, with the logs of any failure
 and a button to re-run just the failed step. That history is the thing you cannot get
 from typing a command yourself — it is the reason Airflow exists.
@@ -936,7 +936,7 @@ cd infra && docker compose --profile bigdata up -d
 
 | URL | What | Login |
 |---|---|---|
-| <http://localhost:8080> | **Airflow** — did the pipeline run, and did it work? | `admin` / `admin` |
+| <http://localhost:8090> | **Airflow** — did the pipeline run, and did it work? | `admin` / `admin` |
 | <http://localhost:8085> | **Kafka UI** — did the events actually get delivered? | none |
 | <http://localhost:8081> | Adminer — browse the database directly | see below |
 

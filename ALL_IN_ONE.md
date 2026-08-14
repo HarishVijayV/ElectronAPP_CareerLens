@@ -1070,6 +1070,22 @@ isn't in it. (Same shape of bug as the Kafka one.)
 
 ### Port map
 
+**The web UIs — open these in a browser.** All are `--profile bigdata` except Adminer.
+
+| Open this | What it is |
+|---|---|
+| **http://localhost:3000** | The app (Next.js) — **Electron loads this one** |
+| **http://localhost:8090** | **Airflow** — trigger `job_pipeline` manually here |
+| **http://localhost:8085** | **Kafka UI** — watch topics and messages flow |
+| **http://localhost:8081** | Adminer — browse Postgres |
+| **http://localhost:9870** | HDFS web UI |
+| **http://careerlens.local:8080** | The Kubernetes copy (needs the hosts-file line) |
+
+Airflow is on **8090, not 8080** — `k8s/kind-config.yaml` maps host 8080 to the kind
+ingress, so the two would fight over it. Override with `AIRFLOW_PORT` if 8090 is taken too.
+
+### Every port
+
 | Port | Service |
 |---|---|
 | 3000 | frontend (Next.js) — **Electron loads this** |
@@ -1077,8 +1093,9 @@ isn't in it. (Same shape of bug as the Kafka one.)
 | 8001 / 8002 / 8003 / 8004 / 8005 | auth / agent / jobs / notification / mcp |
 | 5432 / 6379 | Postgres / Redis |
 | 9092 / 29092 | Kafka (in-network / from host) |
-| 8080 / 8081 / 8085 | Airflow / Adminer / Kafka-UI |
+| 8090 / 8081 / 8085 | Airflow / Adminer / Kafka-UI |
 | 9870 / 9000 | HDFS web UI / namenode |
+| 8080 / 8443 | **kind cluster ingress** (http / https) — not compose |
 
 ### Two ways to run this repo — and what each is for
 
@@ -1101,17 +1118,20 @@ must choose between; they answer different questions.
 *operate* it. Neither hosts it for real users — for that, the same Helm chart goes to a cloud
 cluster, or compose goes onto one VPS.
 
-#### Running both at once — the one collision
+#### Running both at once
 
-Both want **host port 8080**: Airflow at
-[docker-compose.yml:370](infra/docker-compose.yml#L370) and the kind ingress at
-[kind-config.yaml:31-32](k8s/kind-config.yaml#L31-L32). It only bites when the `bigdata`
-profile is up, since Airflow is profile-gated — but when it does, whichever starts second dies
-with *"port is already allocated."* Change `AIRFLOW_PORT` in `infra/.env`, or run kind without
-the bigdata profile.
+They coexist. kind's nodes are Docker containers on their own network, so the two stacks
+ignore each other completely — compose on `localhost:3000`, Kubernetes on
+`careerlens.local:8080`, both up at the same time.
 
-Everything else is safe. kind's nodes are Docker containers on their own network, so the two
-stacks ignore each other completely.
+The one thing that had to be resolved: Airflow and the kind ingress both wanted **host port
+8080**. Airflow now defaults to **8090**
+([docker-compose.yml:369-373](infra/docker-compose.yml#L369-L373)) and the kind ingress keeps
+8080 ([kind-config.yaml:31-32](k8s/kind-config.yaml#L31-L32)). Before that split, whichever
+stack started second died with *"port is already allocated."*
+
+Running all of it — 19 compose containers plus a 3-node cluster — costs roughly 4 GB of RAM.
+Fine for a demo, heavy for all-day work.
 
 ### What actually runs where in the kind cluster
 
