@@ -117,6 +117,50 @@ with DAG(
         bash_command=f"cd {PIPELINE}/dbt && {DBT} test --profiles-dir .",
     )
 
+    # Belt and braces on the indexes, because losing them is silent and expensive.
+    #
+    # The marts indexes are already declared as a dbt post-hook (pipeline/dbt/dbt_project.yml
+    # -> macros/index_marts.sql), and that is still the right place for them. But dbt drops
+    # and recreates every table on each run, so ANY run where the post-hook does not fire
+    # leaves the table with no indexes at all -- and nothing fails. dbt reports success, the
+    # data is correct, and the only symptom is that profile-ranked search silently goes from
+    # 0.2s to 87s, because the ranking subquery falls back to sequentially scanning 982k
+    # bridge rows once per candidate posting. That happened twice on 2026-08-15 and cost an
+    # afternoon to trace, because "slow" does not look like "broken".
+    #
+    # This runs the same CREATE INDEX IF NOT EXISTS statements straight over psql, outside
+    # dbt entirely, so the indexes survive regardless of what the post-hook did. It is
+    # idempotent and takes about a second when they already exist, which is the normal case.
+    ensure_indexes = BashOperator(
+        task_id="ensure_indexes",
+        bash_command=(
+            'PGPASSWORD="$POSTGRES_PASSWORD" psql '
+            '-h "${POSTGRES_HOST:-postgres}" -U "$POSTGRES_USER" -d "$POSTGRES_DB" '
+            "-v ON_ERROR_STOP=1 -c \""
+            "create index if not exists ix_bridge_posting "
+            "on analytics.bridge_posting_skill (posting_id); "
+            "create index if not exists ix_bridge_skill "
+            "on analytics.bridge_posting_skill (skill_id); "
+            "create index if not exists ix_fact_real_salary "
+            "on analytics.fact_job_posting (is_real desc, salary desc nulls last); "
+            "create index if not exists ix_fact_region on analytics.fact_job_posting (region); "
+            "create index if not exists ix_fact_posting_id "
+            "on analytics.fact_job_posting (posting_id); "
+            "create index if not exists ix_dim_skill_name on analytics.dim_skill (skill_name); "
+            "create index if not exists ix_dim_company_id on analytics.dim_company (company_id);"
+            '"'
+        ),
+    )
+
     # Both ingestion sources feed the same ETL (fan-in); everything after is sequential
-    # because each step consumes the previous step's output.
-    [ingest_real, generate_synthetic] >> spark_etl >> train_model >> load_warehouse >> dbt_run >> dbt_test
+    # because each step consumes the previous step's output. ensure_indexes runs last, after
+    # dbt_test, so it re-applies whatever the rebuild dropped.
+    (
+        [ingest_real, generate_synthetic]
+        >> spark_etl
+        >> train_model
+        >> load_warehouse
+        >> dbt_run
+        >> dbt_test
+        >> ensure_indexes
+    )
