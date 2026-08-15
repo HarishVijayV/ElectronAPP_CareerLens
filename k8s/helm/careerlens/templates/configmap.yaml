@@ -31,6 +31,7 @@ data:
   # ---- app config ----
   LLM_PROVIDER: {{ .Values.config.llmProvider | quote }}
   FIREWORKS_MODEL: {{ .Values.config.fireworksModel | quote }}
+  FIREWORKS_FALLBACK_MODEL: {{ .Values.config.fireworksFallbackModel | quote }}
   FRONTEND_ORIGIN: {{ .Values.config.frontendOrigin | quote }}
   FRONTEND_URL: {{ .Values.config.frontendOrigin | quote }}
   ACCESS_TOKEN_EXPIRE_MINUTES: {{ .Values.config.accessTokenExpireMinutes | quote }}

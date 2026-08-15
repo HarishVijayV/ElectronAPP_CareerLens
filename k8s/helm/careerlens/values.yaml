@@ -120,7 +120,9 @@ config:
   postgresUser: careerlens
   postgresDb: careerlens
   llmProvider: fireworks
-  fireworksModel: accounts/fireworks/models/deepseek-v4-flash
+  fireworksModel: accounts/fireworks/models/deepseek-v4-flash-0731
+  # Used only if the model above is retired. Open-weight names outlive proprietary ones.
+  fireworksFallbackModel: accounts/fireworks/models/gpt-oss-120b
   frontendOrigin: http://careerlens.local
   publicApiBaseUrl: http://careerlens.local/api
   accessTokenExpireMinutes: "15"

@@ -13,9 +13,12 @@ Canonical tool spec used everywhere in this codebase (converted per-provider bel
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -97,11 +100,18 @@ class _OpenAICompatibleProvider(LLMProvider):
     """Shared by OpenAI and Fireworks — Fireworks serves an OpenAI-compatible API, so one
     implementation covers both with a different base_url/key/model."""
 
-    def __init__(self, api_key: str, model: str, base_url: str | None = None):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        base_url: str | None = None,
+        fallback_model: str | None = None,
+    ):
         from openai import OpenAI
 
         self._client = OpenAI(api_key=api_key, base_url=base_url)
         self._model = model
+        self._fallback_model = fallback_model
 
     @staticmethod
     def _to_openai_tools(tools: list[dict] | None) -> list[dict] | None:
@@ -119,6 +129,39 @@ class _OpenAICompatibleProvider(LLMProvider):
             for t in tools
         ]
 
+    def _create_with_fallback(self, kwargs: dict):
+        """Retry once on the fallback model when the configured one no longer exists.
+
+        Vendors retire hosted models on their own schedule. When that happens every agent
+        call 404s at once and the app is simply down until someone edits .env — so if a
+        fallback is configured, switch to it and keep serving.
+
+        The switch is permanent for the life of the process (self._model is reassigned):
+        a retired model does not come back, and retrying the dead one on every request
+        would double the latency of every call for nothing.
+
+        Only NotFoundError is caught. Rate limits, auth failures and timeouts must still
+        surface — silently absorbing those would hide real outages behind a slower model.
+        """
+        from openai import NotFoundError
+
+        try:
+            return self._client.chat.completions.create(**kwargs)
+        except NotFoundError:
+            if not self._fallback_model or kwargs["model"] == self._fallback_model:
+                raise
+            logger.error(
+                "Model %s not found (retired or inaccessible). Falling back to %s for the "
+                "rest of this process. Update FIREWORKS_MODEL in infra/.env — list the live "
+                "ones with: curl -H 'Authorization: Bearer $FIREWORKS_API_KEY' "
+                "https://api.fireworks.ai/inference/v1/models",
+                kwargs["model"],
+                self._fallback_model,
+            )
+            self._model = self._fallback_model
+            kwargs["model"] = self._fallback_model
+            return self._client.chat.completions.create(**kwargs)
+
     def chat(self, messages: list[dict], tools: list[dict] | None = None) -> LLMResponse:
         kwargs = {"model": self._model, "messages": messages}
 
@@ -131,7 +174,7 @@ class _OpenAICompatibleProvider(LLMProvider):
         if openai_tools:
             kwargs["tools"] = openai_tools
 
-        resp = self._client.chat.completions.create(**kwargs)
+        resp = self._create_with_fallback(kwargs)
         choice = resp.choices[0].message
 
         tool_calls = []
@@ -171,6 +214,7 @@ class FireworksProvider(_OpenAICompatibleProvider):
             api_key=settings.fireworks_api_key,
             model=settings.fireworks_model,
             base_url="https://api.fireworks.ai/inference/v1",
+            fallback_model=settings.fireworks_fallback_model,
         )
 
 

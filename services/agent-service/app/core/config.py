@@ -17,7 +17,16 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.0-flash"
 
     fireworks_api_key: str = ""
-    fireworks_model: str = "accounts/fireworks/models/deepseek-v4-flash"
+    fireworks_model: str = "accounts/fireworks/models/deepseek-v4-flash-0731"
+    # Used only when the model above stops existing. Hosted models get retired on the
+    # vendor's schedule, not yours: `deepseek-v4-flash` (undated) vanished and every agent
+    # call started failing with a 404 that Fireworks words identically to a bad API key,
+    # so the error sends you hunting through credentials that were fine all along.
+    #
+    # gpt-oss-120b is the deliberate choice for a fallback: open-weight models keep plain
+    # undated names and outlive proprietary ones, because the host isn't tied to another
+    # vendor's lifecycle. Verified to support tool calling, which every agent here needs.
+    fireworks_fallback_model: str = "accounts/fireworks/models/gpt-oss-120b"
 
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5"
