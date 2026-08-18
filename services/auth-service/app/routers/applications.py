@@ -41,13 +41,46 @@ def trigger_inbox_sync(
 
     from celery import Celery
 
-    celery = Celery(broker=os.getenv("REDIS_URL", "redis://redis:6379/0"))
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    celery = Celery(broker=redis_url, backend=redis_url)
     task = celery.send_task(
         "app.tasks.email_sync.sync_inbox",
         # Positional args must line up with sync_inbox(user_id, max_messages, lookback_days).
         kwargs={"user_id": claims["sub"], "lookback_days": days},
     )
     return {"queued": True, "task_id": task.id, "lookback_days": days}
+
+
+@router.get("/sync-status/{task_id}")
+def sync_status(task_id: str, claims: dict = Depends(get_current_claims)):
+    """Check if the background Gmail sync is still running.
+    
+    Returns:
+    - status: queued/running/completed/failed
+    - progress: 0-100 (if running)
+    - count: number of applications synced (if completed)
+    """
+    import os
+    from celery import Celery
+    
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    celery = Celery(broker=redis_url, backend=redis_url)
+    task = celery.AsyncResult(task_id)
+    
+    # task.state: PENDING, STARTED, SUCCESS, FAILURE, RETRY
+    if task.state == "PENDING":
+        return {"status": "queued", "progress": 0}
+    elif task.state == "STARTED":
+        # task.info is the dict sent by worker during progress updates
+        progress = task.info.get("current", 0) if isinstance(task.info, dict) else 0
+        return {"status": "running", "progress": progress}
+    elif task.state == "SUCCESS":
+        return {"status": "completed", "count": task.result.get("count", 0) if isinstance(task.result, dict) else 0}
+    elif task.state == "FAILURE":
+        return {"status": "failed", "error": str(task.info)}
+    else:
+        return {"status": "unknown"}
+
 
 # Ordered pipeline stages. Order matters for the funnel: each stage counts applications
 # that reached AT LEAST that far.
