@@ -292,6 +292,7 @@ export const api = {
   funnel: () => request<FunnelResponse>("/applications/funnel"),
   resumePerformance: () => request<ResumePerformance[]>("/applications/resume-performance"),
   syncInbox: () => request<{ queued: boolean; task_id: string }>("/applications/sync-inbox", { method: "POST" }),
+  syncStatus: (taskId: string) => request<{ status: string; count?: number; error?: string }>(`/applications/sync-status/${taskId}`),
   gmailStatus: () => request<GmailStatus>("/auth/google/status"),
   gmailConnect: () => request<{ authorization_url: string }>("/auth/google/connect"),
 

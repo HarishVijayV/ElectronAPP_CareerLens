@@ -94,17 +94,39 @@ export default function ApplicationsPage() {
     setSyncing(true);
     setMessage(null);
     try {
-      await api.syncInbox();
-      // The sync runs in a Celery worker, so there's nothing to await — poll shortly
-      // after instead of blocking the UI on an inbox scan.
-      setMessage("Sync queued. Reading your inbox in the background…");
-      setTimeout(load, 6000);
+      const { task_id } = await api.syncInbox();
+      setMessage("Syncing your inbox… this takes ~30–60 seconds.");
+
+      // Poll every 3 seconds until the Celery task finishes, then refresh.
+      // The one-shot 6s timeout was too short — the sync takes ~10s+ with LLM calls.
+      await new Promise<void>((resolve) => {
+        const interval = setInterval(async () => {
+          try {
+            const result = await api.syncStatus(task_id);
+            if (result.status === "completed") {
+              clearInterval(interval);
+              const count = result.count ?? 0;
+              setMessage(count > 0 ? `Sync done — ${count} new application(s) added.` : "Sync done — no new job emails found in the last 30 days.");
+              load();
+              resolve();
+            } else if (result.status === "failed") {
+              clearInterval(interval);
+              setMessage(`Sync failed: ${result.error ?? "unknown error"}`);
+              resolve();
+            }
+            // status = "queued" or "running" → keep waiting
+          } catch {
+            // network blip — keep polling, don't abort
+          }
+        }, 3000);
+      });
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Sync failed");
     } finally {
       setSyncing(false);
     }
   }
+
 
   return (
     <AppShell>
