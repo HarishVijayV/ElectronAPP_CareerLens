@@ -63,6 +63,16 @@ export default function ApplicationsPage() {
     }
   }
 
+  async function disconnectGmail() {
+    try {
+      await api.gmailDisconnect();
+      setMessage("Gmail disconnected.");
+      load();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Could not disconnect Gmail");
+    }
+  }
+
   async function addApplication(e: React.FormEvent) {
     e.preventDefault();
     if (!form.company.trim()) return;
@@ -155,6 +165,13 @@ export default function ApplicationsPage() {
                 className="rounded bg-zinc-900 px-4 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-[var(--surface-card)] dark:text-[var(--text-primary)]"
               >
                 {syncing ? "Syncing…" : "Sync inbox"}
+              </button>
+              <button
+                onClick={disconnectGmail}
+                disabled={syncing}
+                className="rounded border border-[var(--border-strong)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-page)] disabled:opacity-50 dark:hover:bg-zinc-800"
+              >
+                Disconnect
               </button>
             </>
           ) : gmail?.configured ? (

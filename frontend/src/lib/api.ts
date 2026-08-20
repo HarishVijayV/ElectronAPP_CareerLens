@@ -295,6 +295,10 @@ export const api = {
   syncStatus: (taskId: string) => request<{ status: string; count?: number; error?: string }>(`/applications/sync-status/${taskId}`),
   gmailStatus: () => request<GmailStatus>("/auth/google/status"),
   gmailConnect: () => request<{ authorization_url: string }>("/auth/google/connect"),
+  gmailDisconnect: () =>
+    request<{ disconnected: boolean; note?: string }>("/auth/google/disconnect", {
+      method: "DELETE",
+    }),
 
   // ---- resume ----
   getActiveResume: () => request<ActiveResume>("/resume/active"),
